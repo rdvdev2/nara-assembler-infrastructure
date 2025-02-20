@@ -2,7 +2,7 @@ use nara_assembler_infrastructure::arch_def::{Architecture, Instruction, Operand
 use nara_assembler_infrastructure::assembler::{AssemblerPass, AssemblerPasses};
 use std::error::Error;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum TestArch {}
 
 #[derive(Clone, Copy, Debug)]
@@ -22,7 +22,7 @@ const TEST_INSTRUCTIONS: &[TestInstructions] = &[
 
 enum TestOperandKinds {}
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum TestSymbols {
     Register(u8),
 }
@@ -89,9 +89,9 @@ fn main() {
 
     let mut assembler_passes = AssemblerPasses::<TestArch>::default();
 
-    let tokens = assembler_passes.apply_all(input.chars());
+    let ast_nodes = assembler_passes.apply_all(input.chars());
 
-    for token in tokens {
-        println!("{token:?}")
+    for node in ast_nodes {
+        println!("{node:?}")
     }
 }

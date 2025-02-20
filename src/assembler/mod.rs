@@ -1,6 +1,7 @@
 use crate::arch_def::Architecture;
 use crate::assembler::passes::retokenize::RetokenizePass;
 use passes::tokenize::TokenizePass;
+use crate::assembler::passes::parse::ParsePass;
 
 pub mod passes;
 
@@ -13,8 +14,8 @@ pub trait AssemblerPass {
     fn finish(&mut self) -> impl IntoIterator<Item = Self::Output> {
         vec![]
     }
-
-    fn apply_all(
+    
+    fn apply_all_partial(
         &mut self,
         items: impl IntoIterator<Item = Self::Input>,
     ) -> impl IntoIterator<Item = Self::Output> {
@@ -23,7 +24,15 @@ pub trait AssemblerPass {
         for item in items {
             transformed.extend(self.apply(item));
         }
-
+        
+        transformed
+    }
+    
+    fn apply_all(
+        &mut self,
+        items: impl IntoIterator<Item = Self::Input>,
+    ) -> impl IntoIterator<Item = Self::Output> {
+        let mut transformed = Vec::from_iter(self.apply_all_partial(items));
         transformed.extend(self.finish());
         transformed
     }
@@ -32,6 +41,7 @@ pub trait AssemblerPass {
 pub struct AssemblerPasses<A: Architecture> {
     tokenize: TokenizePass,
     retokenize: RetokenizePass<A>,
+    parse: ParsePass<A>,
 }
 
 impl<A: Architecture> Default for AssemblerPasses<A> {
@@ -39,17 +49,26 @@ impl<A: Architecture> Default for AssemblerPasses<A> {
         Self {
             tokenize: TokenizePass::default(),
             retokenize: RetokenizePass::default(),
+            parse: ParsePass::default(),
         }
     }
 }
 
 impl<A: Architecture> AssemblerPass for AssemblerPasses<A> {
     type Input = <TokenizePass as AssemblerPass>::Input;
-    type Output = <RetokenizePass<A> as AssemblerPass>::Output;
+    type Output = <ParsePass<A> as AssemblerPass>::Output;
 
     fn apply(&mut self, item: Self::Input) -> impl IntoIterator<Item = Self::Output> {
         let tokens = self.tokenize.apply(item);
+        let tokens = self.retokenize.apply_all_partial(tokens);
+        let ast_nodes = self.parse.apply_all_partial(tokens);
+        ast_nodes
+    }
+
+    fn finish(&mut self) -> impl IntoIterator<Item=Self::Output> {
+        let tokens = self.tokenize.finish();
         let tokens = self.retokenize.apply_all(tokens);
-        tokens
+        let ast_nodes = self.parse.apply_all(tokens);
+        ast_nodes
     }
 }

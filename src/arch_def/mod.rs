@@ -1,6 +1,6 @@
 use std::error::Error;
 
-pub trait Architecture {
+pub trait Architecture: Clone {
     type Instruction: Instruction<Self>;
     type OperandKind: OperandKind<Self>;
     type Symbol: Symbol<Self>;
@@ -24,6 +24,6 @@ pub trait OperandKind<Arch: Architecture + ?Sized> {
     fn parse(&self, s: &str) -> Result<Self::Operand, Box<dyn Error>>;
 }
 
-pub trait Symbol<Arch: Architecture + ?Sized>: Sized {
+pub trait Symbol<Arch: Architecture + ?Sized>: Sized + Clone {
     fn parse(symbol: &str) -> Result<Self, Box<dyn Error>>;
 }
