@@ -2,6 +2,7 @@ use crate::arch_def::Architecture;
 use crate::assembler::passes::retokenize::RetokenizePass;
 use passes::tokenize::TokenizePass;
 use crate::assembler::passes::parse::ParsePass;
+use crate::assembler::passes::parse_operands::ParseOperandsPass;
 
 pub mod passes;
 
@@ -42,6 +43,7 @@ pub struct AssemblerPasses<A: Architecture> {
     tokenize: TokenizePass,
     retokenize: RetokenizePass<A>,
     parse: ParsePass<A>,
+    parse_operands: ParseOperandsPass<A>,
 }
 
 impl<A: Architecture> Default for AssemblerPasses<A> {
@@ -50,18 +52,20 @@ impl<A: Architecture> Default for AssemblerPasses<A> {
             tokenize: TokenizePass::default(),
             retokenize: RetokenizePass::default(),
             parse: ParsePass::default(),
+            parse_operands: ParseOperandsPass::default(),
         }
     }
 }
 
 impl<A: Architecture> AssemblerPass for AssemblerPasses<A> {
     type Input = <TokenizePass as AssemblerPass>::Input;
-    type Output = <ParsePass<A> as AssemblerPass>::Output;
+    type Output = <ParseOperandsPass<A> as AssemblerPass>::Output;
 
     fn apply(&mut self, item: Self::Input) -> impl IntoIterator<Item = Self::Output> {
         let tokens = self.tokenize.apply(item);
         let tokens = self.retokenize.apply_all_partial(tokens);
         let ast_nodes = self.parse.apply_all_partial(tokens);
+        let ast_nodes = self.parse_operands.apply_all_partial(ast_nodes);
         ast_nodes
     }
 
@@ -69,6 +73,7 @@ impl<A: Architecture> AssemblerPass for AssemblerPasses<A> {
         let tokens = self.tokenize.finish();
         let tokens = self.retokenize.apply_all(tokens);
         let ast_nodes = self.parse.apply_all(tokens);
+        let ast_nodes = self.parse_operands.apply_all(ast_nodes);
         ast_nodes
     }
 }

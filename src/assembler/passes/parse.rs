@@ -1,8 +1,10 @@
 use std::fmt::{Debug, Formatter};
-use crate::arch_def::Architecture;
+use std::iter::zip;
+use crate::arch_def::{Architecture, Instruction, OperandKind};
 use crate::assembler::passes::retokenize::ArchToken;
 use crate::assembler::AssemblerPass;
 use std::rc::Rc;
+use itertools::{zip_eq, EitherOrBoth, Itertools};
 
 pub struct ParsePass<A: Architecture> {
     state: ParserState<A>
@@ -66,14 +68,14 @@ impl<A: Architecture> ParserState<A> {
 }
 
 struct InInstruction<A: Architecture> {
-    instruction: A::Instruction,
+    instruction: String,
     operators: Vec<PlausibleOperator<A>>,
     can_accept_operator: bool,
     can_finish: bool,
 }
 
 impl<A: Architecture> InInstruction<A> {
-    fn start(instruction: A::Instruction) -> Self {
+    fn start(instruction: String) -> Self {
         Self {
             instruction,
             operators: vec![],
@@ -86,7 +88,7 @@ impl<A: Architecture> InInstruction<A> {
         let mut operators = self.operators.clone();
         operators.push(operator);
         Self {
-            instruction: self.instruction,
+            instruction: self.instruction.clone(),
             operators,
             can_accept_operator: false,
             can_finish: true,
@@ -95,7 +97,7 @@ impl<A: Architecture> InInstruction<A> {
 
     fn with_comma(&self) -> Self {
         Self {
-            instruction: self.instruction,
+            instruction: self.instruction.clone(),
             operators: self.operators.clone(),
             can_accept_operator: true,
             can_finish: false,
@@ -104,7 +106,10 @@ impl<A: Architecture> InInstruction<A> {
 
     fn finish(&self) -> Option<ASTNode<A>> {
         if self.can_finish {
-            Some(ASTNode::Instruction(self.instruction, self.operators.clone().into()))
+            let inst = A::Instruction::enumerate().into_iter().filter(|inst| inst.name() == self.instruction).find(|inst| {
+                inst.operands().into_iter().zip_longest(&self.operators).all(|x| x.both().is_some_and(|(kind, operator)| kind.matches(operator)))
+            })?;
+            Some(ASTNode::Instruction(*inst, self.operators.clone().into()))
         } else {
             None
         }

@@ -1,6 +1,8 @@
 use nara_assembler_infrastructure::arch_def::{Architecture, Instruction, OperandKind, Symbol};
 use nara_assembler_infrastructure::assembler::{AssemblerPass, AssemblerPasses};
 use std::error::Error;
+use std::rc::Rc;
+use nara_assembler_infrastructure::assembler::passes::parse::PlausibleOperator;
 
 #[derive(Clone, Debug)]
 enum TestArch {}
@@ -9,6 +11,7 @@ enum TestArch {}
 enum TestInstructions {
     Xor,
     Addi,
+    AddiImplicit,
     Halt,
     Jump,
 }
@@ -16,11 +19,21 @@ enum TestInstructions {
 const TEST_INSTRUCTIONS: &[TestInstructions] = &[
     TestInstructions::Xor,
     TestInstructions::Addi,
+    TestInstructions::AddiImplicit,
     TestInstructions::Halt,
     TestInstructions::Jump,
 ];
 
-enum TestOperandKinds {}
+enum TestOperandKinds {
+    Register,
+    Immediate,
+}
+
+#[derive(Debug)]
+enum TestOperands {
+    Register(u8),
+    Immediate(i16),
+}
 
 #[derive(Clone, Debug)]
 enum TestSymbols {
@@ -38,13 +51,20 @@ impl Instruction<TestArch> for TestInstructions {
         match self {
             TestInstructions::Xor => "xor",
             TestInstructions::Addi => "addi",
+            TestInstructions::AddiImplicit => "addi",
             TestInstructions::Halt => "halt",
             TestInstructions::Jump => "jump",
         }
     }
 
     fn operands(&self) -> impl IntoIterator<Item = <TestArch as Architecture>::OperandKind> {
-        vec![]
+        match self {
+            TestInstructions::Xor => vec![TestOperandKinds::Register, TestOperandKinds::Register, TestOperandKinds::Register],
+            TestInstructions::Addi => vec![TestOperandKinds::Register, TestOperandKinds::Register, TestOperandKinds::Immediate],
+            TestInstructions::AddiImplicit => vec![TestOperandKinds::Register, TestOperandKinds::Immediate],
+            TestInstructions::Halt => vec![],
+            TestInstructions::Jump => vec![TestOperandKinds::Immediate],
+        }
     }
 
     fn emit(
@@ -63,10 +83,14 @@ impl Instruction<TestArch> for TestInstructions {
 }
 
 impl OperandKind<TestArch> for TestOperandKinds {
-    type Operand = ();
+    type Operand = TestOperands;
 
-    fn parse(&self, s: &str) -> Result<Self::Operand, Box<dyn Error>> {
-        unimplemented!()
+    fn parse(&self, plausible_operator: PlausibleOperator<TestArch>) -> Result<Self::Operand, Box<dyn Error>> {
+        match (self, plausible_operator) {
+            (Self::Register, PlausibleOperator::Symbol(TestSymbols::Register(register))) => Ok(TestOperands::Register(register)),
+            (Self::Immediate, PlausibleOperator::Value(value)) => Ok(TestOperands::Immediate(value.try_into()?)),
+            _ => Err("The provided operand can't be accepted".into())
+        }
     }
 }
 
@@ -83,6 +107,7 @@ impl Symbol<TestArch> for TestSymbols {
 fn main() {
     let input = r"
         xor r0, r0, r0
+        addi r0, r0, 1
         addi r0, 1
         halt; jump -1
     ";

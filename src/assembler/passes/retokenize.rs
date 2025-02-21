@@ -36,7 +36,7 @@ impl<A: Architecture> RetokenizePass<A> {
         A::Instruction::enumerate()
             .into_iter()
             .find(|inst| inst.name() == symbol)
-            .copied()
+            .map(|inst| inst.name().to_string())
             .map(ArchToken::Instruction)
             .unwrap_or_else(|| {
                 ArchToken::Symbol(
@@ -49,7 +49,7 @@ impl<A: Architecture> RetokenizePass<A> {
 
 #[derive(Debug)]
 pub enum ArchToken<A: Architecture> {
-    Instruction(A::Instruction),
+    Instruction(String),
     Symbol(A::Symbol),
     Value(isize),
     Comma,
