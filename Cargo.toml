@@ -5,3 +5,7 @@ edition = "2024"
 
 [dependencies]
 itertools = "0.14.0"
+
+[[bin]]
+name = "sisa-i-as"
+path = "src/bin/sisa_i.rs"
