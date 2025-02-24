@@ -1,5 +1,5 @@
-use std::error::Error;
 use crate::assembler::passes::parse::PlausibleOperator;
+use std::error::Error;
 
 pub trait Architecture: Clone {
     type Instruction: Instruction<Self>;
@@ -22,7 +22,10 @@ where
 
 pub trait OperandKind<Arch: Architecture + ?Sized> {
     type Operand: Clone;
-    fn parse(&self, plausible_operator: PlausibleOperator<Arch>) -> Result<Self::Operand, Box<dyn Error>>;
+    fn parse(
+        &self,
+        plausible_operator: PlausibleOperator<Arch>,
+    ) -> Result<Self::Operand, Box<dyn Error>>;
     fn matches(&self, plausible_operator: &PlausibleOperator<Arch>) -> bool {
         self.parse(plausible_operator.clone()).is_ok()
     }

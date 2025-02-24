@@ -1,48 +1,70 @@
+use crate::arch_def::{Architecture, Instruction, OperandKind};
+use crate::assembler::AssemblerPass;
+use crate::assembler::passes::retokenize::ArchToken;
+use itertools::{EitherOrBoth, Itertools, zip_eq};
 use std::fmt::{Debug, Formatter};
 use std::iter::zip;
-use crate::arch_def::{Architecture, Instruction, OperandKind};
-use crate::assembler::passes::retokenize::ArchToken;
-use crate::assembler::AssemblerPass;
 use std::rc::Rc;
-use itertools::{zip_eq, EitherOrBoth, Itertools};
 
 pub struct ParsePass<A: Architecture> {
-    state: ParserState<A>
+    state: ParserState<A>,
 }
 
 impl<A: Architecture> Default for ParsePass<A> {
     fn default() -> Self {
         Self {
-            state: ParserState::default()
+            state: ParserState::default(),
         }
     }
 }
 
-impl <A: Architecture> AssemblerPass for ParsePass<A> {
+impl<A: Architecture> AssemblerPass for ParsePass<A> {
     type Input = ArchToken<A>;
     type Output = ASTNode<A>;
 
-    fn apply(&mut self, item: Self::Input) -> impl IntoIterator<Item=Self::Output> {
+    fn apply(&mut self, item: Self::Input) -> impl IntoIterator<Item = Self::Output> {
         let (next_state, output) = match (&self.state, item) {
             // Skip over line feeds
             (ParserState::Initial, ArchToken::LineFeed) => (ParserState::Initial, None),
 
             // Parse instruction
-            (ParserState::Initial, ArchToken::Instruction(inst)) => (ParserState::InInstruction(InInstruction::start(inst)), None),
-            (ParserState::InInstruction(inst), ArchToken::Symbol(symbol)) if inst.can_accept_operator => (ParserState::InInstruction(inst.with_operator(PlausibleOperator::Symbol(symbol))), None),
-            (ParserState::InInstruction(inst), ArchToken::Value(value)) if inst.can_accept_operator => (ParserState::InInstruction(inst.with_operator(PlausibleOperator::Value(value))), None),
-            (ParserState::InInstruction(inst), ArchToken::Comma) if !inst.can_accept_operator => (ParserState::InInstruction(inst.with_comma()), None),
-            (state @ ParserState::InInstruction(inst), ArchToken::LineFeed) if inst.can_finish => (ParserState::Initial, Some(state.finish_or_error())),
+            (ParserState::Initial, ArchToken::Instruction(inst)) => {
+                (ParserState::InInstruction(InInstruction::start(inst)), None)
+            }
+            (ParserState::InInstruction(inst), ArchToken::Symbol(symbol))
+                if inst.can_accept_operator =>
+            {
+                (
+                    ParserState::InInstruction(
+                        inst.with_operator(PlausibleOperator::Symbol(symbol)),
+                    ),
+                    None,
+                )
+            }
+            (ParserState::InInstruction(inst), ArchToken::Value(value))
+                if inst.can_accept_operator =>
+            {
+                (
+                    ParserState::InInstruction(inst.with_operator(PlausibleOperator::Value(value))),
+                    None,
+                )
+            }
+            (ParserState::InInstruction(inst), ArchToken::Comma) if !inst.can_accept_operator => {
+                (ParserState::InInstruction(inst.with_comma()), None)
+            }
+            (state @ ParserState::InInstruction(inst), ArchToken::LineFeed) if inst.can_finish => {
+                (ParserState::Initial, Some(state.finish_or_error()))
+            }
 
             // Fail for anything else
-            _ => panic!("Unexpected token")
+            _ => panic!("Unexpected token"),
         };
 
         self.state = next_state;
         output
     }
 
-    fn finish(&mut self) -> impl IntoIterator<Item=Self::Output> {
+    fn finish(&mut self) -> impl IntoIterator<Item = Self::Output> {
         self.state.finish()
     }
 }
@@ -51,7 +73,7 @@ impl <A: Architecture> AssemblerPass for ParsePass<A> {
 enum ParserState<A: Architecture> {
     #[default]
     Initial,
-    InInstruction(InInstruction<A>)
+    InInstruction(InInstruction<A>),
 }
 
 impl<A: Architecture> ParserState<A> {
@@ -106,9 +128,18 @@ impl<A: Architecture> InInstruction<A> {
 
     fn finish(&self) -> Option<ASTNode<A>> {
         if self.can_finish {
-            let inst = A::Instruction::enumerate().into_iter().filter(|inst| inst.name() == self.instruction).find(|inst| {
-                inst.operands().into_iter().zip_longest(&self.operators).all(|x| x.both().is_some_and(|(kind, operator)| kind.matches(operator)))
-            })?;
+            let inst = A::Instruction::enumerate()
+                .into_iter()
+                .filter(|inst| inst.name() == self.instruction)
+                .find(|inst| {
+                    inst.operands()
+                        .into_iter()
+                        .zip_longest(&self.operators)
+                        .all(|x| {
+                            x.both()
+                                .is_some_and(|(kind, operator)| kind.matches(operator))
+                        })
+                })?;
             Some(ASTNode::Instruction(*inst, self.operators.clone().into()))
         } else {
             None
@@ -117,13 +148,17 @@ impl<A: Architecture> InInstruction<A> {
 }
 
 pub enum ASTNode<A: Architecture> {
-    Instruction(A::Instruction, Rc<[PlausibleOperator<A>]>)
+    Instruction(A::Instruction, Rc<[PlausibleOperator<A>]>),
 }
 
-impl<A: Architecture> Debug for ASTNode<A> where A::Instruction: Debug, A::Symbol: Debug {
+impl<A: Architecture> Debug for ASTNode<A>
+where
+    A::Instruction: Debug,
+    A::Symbol: Debug,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ASTNode::Instruction(inst, ops) => write!(f, "Instruction({inst:?}, {ops:?})")
+            ASTNode::Instruction(inst, ops) => write!(f, "Instruction({inst:?}, {ops:?})"),
         }
     }
 }
@@ -131,14 +166,17 @@ impl<A: Architecture> Debug for ASTNode<A> where A::Instruction: Debug, A::Symbo
 #[derive(Clone)]
 pub enum PlausibleOperator<A: Architecture> {
     Symbol(A::Symbol),
-    Value(isize)
+    Value(isize),
 }
 
-impl<A: Architecture> Debug for PlausibleOperator<A> where A::Symbol: Debug {
+impl<A: Architecture> Debug for PlausibleOperator<A>
+where
+    A::Symbol: Debug,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             PlausibleOperator::Symbol(symbol) => write!(f, "Symbol({symbol:?})"),
-            PlausibleOperator::Value(value) => write!(f, "Value({value:?})")
+            PlausibleOperator::Value(value) => write!(f, "Value({value:?})"),
         }
     }
 }

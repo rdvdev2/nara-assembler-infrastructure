@@ -1,6 +1,6 @@
 use crate::arch_def::{Architecture, Instruction, Symbol};
-use crate::assembler::passes::tokenize::Token;
 use crate::assembler::AssemblerPass;
+use crate::assembler::passes::tokenize::Token;
 use std::marker::PhantomData;
 
 pub struct RetokenizePass<A: Architecture> {

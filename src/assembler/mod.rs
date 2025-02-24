@@ -1,9 +1,9 @@
 use crate::arch_def::Architecture;
-use crate::assembler::passes::retokenize::RetokenizePass;
-use passes::tokenize::TokenizePass;
 use crate::assembler::passes::emit::EmitPass;
 use crate::assembler::passes::parse::ParsePass;
 use crate::assembler::passes::parse_operands::ParseOperandsPass;
+use crate::assembler::passes::retokenize::RetokenizePass;
+use passes::tokenize::TokenizePass;
 
 pub mod passes;
 
@@ -16,7 +16,7 @@ pub trait AssemblerPass {
     fn finish(&mut self) -> impl IntoIterator<Item = Self::Output> {
         vec![]
     }
-    
+
     fn apply_all_partial(
         &mut self,
         items: impl IntoIterator<Item = Self::Input>,
@@ -26,10 +26,10 @@ pub trait AssemblerPass {
         for item in items {
             transformed.extend(self.apply(item));
         }
-        
+
         transformed
     }
-    
+
     fn apply_all(
         &mut self,
         items: impl IntoIterator<Item = Self::Input>,
@@ -73,7 +73,7 @@ impl<A: Architecture> AssemblerPass for AssemblerPasses<A> {
         bytes
     }
 
-    fn finish(&mut self) -> impl IntoIterator<Item=Self::Output> {
+    fn finish(&mut self) -> impl IntoIterator<Item = Self::Output> {
         let tokens = self.tokenize.finish();
         let tokens = self.retokenize.apply_all(tokens);
         let ast_nodes = self.parse.apply_all(tokens);

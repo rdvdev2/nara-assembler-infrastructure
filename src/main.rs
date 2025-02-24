@@ -1,8 +1,8 @@
+use itertools::Itertools;
 use nara_assembler_infrastructure::arch_def::{Architecture, Instruction, OperandKind, Symbol};
 use nara_assembler_infrastructure::assembler::passes::parse::PlausibleOperator;
 use nara_assembler_infrastructure::assembler::{AssemblerPass, AssemblerPasses};
 use std::error::Error;
-use itertools::Itertools;
 
 #[derive(Clone, Debug)]
 enum TestArch {}
@@ -59,9 +59,19 @@ impl Instruction<TestArch> for TestInstructions {
 
     fn operands(&self) -> impl IntoIterator<Item = <TestArch as Architecture>::OperandKind> {
         match self {
-            TestInstructions::Xor => vec![TestOperandKinds::Register, TestOperandKinds::Register, TestOperandKinds::Register],
-            TestInstructions::Addi => vec![TestOperandKinds::Register, TestOperandKinds::Register, TestOperandKinds::Immediate],
-            TestInstructions::AddiImplicit => vec![TestOperandKinds::Register, TestOperandKinds::Immediate],
+            TestInstructions::Xor => vec![
+                TestOperandKinds::Register,
+                TestOperandKinds::Register,
+                TestOperandKinds::Register,
+            ],
+            TestInstructions::Addi => vec![
+                TestOperandKinds::Register,
+                TestOperandKinds::Register,
+                TestOperandKinds::Immediate,
+            ],
+            TestInstructions::AddiImplicit => {
+                vec![TestOperandKinds::Register, TestOperandKinds::Immediate]
+            }
             TestInstructions::Halt => vec![],
             TestInstructions::Jump => vec![TestOperandKinds::Immediate],
         }
@@ -73,22 +83,40 @@ impl Instruction<TestArch> for TestInstructions {
     ) -> impl IntoIterator<Item = u8> {
         match self {
             TestInstructions::Xor => {
-                let Some((TestOperands::Register(rd), TestOperands::Register(rs1), TestOperands::Register(rs2))) = operands.into_iter().collect_tuple() else { unreachable!() };
+                let Some((
+                    TestOperands::Register(rd),
+                    TestOperands::Register(rs1),
+                    TestOperands::Register(rs2),
+                )) = operands.into_iter().collect_tuple()
+                else {
+                    unreachable!()
+                };
                 [0, rd, rs1, rs2, 0]
             }
             TestInstructions::Addi => {
-                let Some((TestOperands::Register(rd), TestOperands::Register(rs1), TestOperands::Immediate(imm))) = operands.into_iter().collect_tuple() else { unreachable!() };
+                let Some((
+                    TestOperands::Register(rd),
+                    TestOperands::Register(rs1),
+                    TestOperands::Immediate(imm),
+                )) = operands.into_iter().collect_tuple()
+                else {
+                    unreachable!()
+                };
                 [1, rd, rs1, imm as u8, (imm >> 8) as u8]
             }
             TestInstructions::AddiImplicit => {
-                let Some((TestOperands::Register(rd), TestOperands::Immediate(imm))) = operands.into_iter().collect_tuple() else { unreachable!() };
+                let Some((TestOperands::Register(rd), TestOperands::Immediate(imm))) =
+                    operands.into_iter().collect_tuple()
+                else {
+                    unreachable!()
+                };
                 [1, rd, rd, imm as u8, (imm >> 8) as u8]
             }
-            TestInstructions::Halt => {
-                [2, 0, 0, 0, 0]
-            }
+            TestInstructions::Halt => [2, 0, 0, 0, 0],
             TestInstructions::Jump => {
-                let Some(TestOperands::Immediate(imm)) = operands.into_iter().next() else { unreachable!() };
+                let Some(TestOperands::Immediate(imm)) = operands.into_iter().next() else {
+                    unreachable!()
+                };
                 [3, imm as u8, (imm >> 8) as u8, 0, 0]
             }
         }
@@ -102,11 +130,18 @@ impl Instruction<TestArch> for TestInstructions {
 impl OperandKind<TestArch> for TestOperandKinds {
     type Operand = TestOperands;
 
-    fn parse(&self, plausible_operator: PlausibleOperator<TestArch>) -> Result<Self::Operand, Box<dyn Error>> {
+    fn parse(
+        &self,
+        plausible_operator: PlausibleOperator<TestArch>,
+    ) -> Result<Self::Operand, Box<dyn Error>> {
         match (self, plausible_operator) {
-            (Self::Register, PlausibleOperator::Symbol(TestSymbols::Register(register))) => Ok(TestOperands::Register(register)),
-            (Self::Immediate, PlausibleOperator::Value(value)) => Ok(TestOperands::Immediate(value.try_into()?)),
-            _ => Err("The provided operand can't be accepted".into())
+            (Self::Register, PlausibleOperator::Symbol(TestSymbols::Register(register))) => {
+                Ok(TestOperands::Register(register))
+            }
+            (Self::Immediate, PlausibleOperator::Value(value)) => {
+                Ok(TestOperands::Immediate(value.try_into()?))
+            }
+            _ => Err("The provided operand can't be accepted".into()),
         }
     }
 }
@@ -133,6 +168,6 @@ fn main() {
 
     let bytes = assembler_passes.apply_all(input.chars());
     let bytes = bytes.into_iter().collect_vec();
-    
+
     println!("{:02x?}", bytes);
 }
