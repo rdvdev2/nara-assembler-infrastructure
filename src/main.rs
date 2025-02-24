@@ -1,8 +1,8 @@
 use nara_assembler_infrastructure::arch_def::{Architecture, Instruction, OperandKind, Symbol};
+use nara_assembler_infrastructure::assembler::passes::parse::PlausibleOperator;
 use nara_assembler_infrastructure::assembler::{AssemblerPass, AssemblerPasses};
 use std::error::Error;
-use std::rc::Rc;
-use nara_assembler_infrastructure::assembler::passes::parse::PlausibleOperator;
+use itertools::Itertools;
 
 #[derive(Clone, Debug)]
 enum TestArch {}
@@ -29,7 +29,7 @@ enum TestOperandKinds {
     Immediate,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum TestOperands {
     Register(u8),
     Immediate(i16),
@@ -69,12 +69,29 @@ impl Instruction<TestArch> for TestInstructions {
 
     fn emit(
         &self,
-        operands: impl IntoIterator<
-            Item = <TestArch as Architecture>::Symbol,
-            IntoIter = impl ExactSizeIterator,
-        >,
-    ) -> String {
-        "".into()
+        operands: impl IntoIterator<Item = TestOperands>,
+    ) -> impl IntoIterator<Item = u8> {
+        match self {
+            TestInstructions::Xor => {
+                let Some((TestOperands::Register(rd), TestOperands::Register(rs1), TestOperands::Register(rs2))) = operands.into_iter().collect_tuple() else { unreachable!() };
+                [0, rd, rs1, rs2, 0]
+            }
+            TestInstructions::Addi => {
+                let Some((TestOperands::Register(rd), TestOperands::Register(rs1), TestOperands::Immediate(imm))) = operands.into_iter().collect_tuple() else { unreachable!() };
+                [1, rd, rs1, imm as u8, (imm >> 8) as u8]
+            }
+            TestInstructions::AddiImplicit => {
+                let Some((TestOperands::Register(rd), TestOperands::Immediate(imm))) = operands.into_iter().collect_tuple() else { unreachable!() };
+                [1, rd, rd, imm as u8, (imm >> 8) as u8]
+            }
+            TestInstructions::Halt => {
+                [2, 0, 0, 0, 0]
+            }
+            TestInstructions::Jump => {
+                let Some(TestOperands::Immediate(imm)) = operands.into_iter().next() else { unreachable!() };
+                [3, imm as u8, (imm >> 8) as u8, 0, 0]
+            }
+        }
     }
 
     fn enumerate() -> impl IntoIterator<Item = &'static Self> {
@@ -114,9 +131,8 @@ fn main() {
 
     let mut assembler_passes = AssemblerPasses::<TestArch>::default();
 
-    let ast_nodes = assembler_passes.apply_all(input.chars());
-
-    for node in ast_nodes {
-        println!("{node:?}")
-    }
+    let bytes = assembler_passes.apply_all(input.chars());
+    let bytes = bytes.into_iter().collect_vec();
+    
+    println!("{:02x?}", bytes);
 }

@@ -1,10 +1,9 @@
-use std::error::Error;
+use crate::arch_def::{Architecture, Instruction, OperandKind};
+use crate::assembler::passes::parse::{ASTNode, PlausibleOperator};
+use crate::assembler::AssemblerPass;
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 use std::rc::Rc;
-use crate::arch_def::{Architecture, Instruction, OperandKind};
-use crate::assembler::AssemblerPass;
-use crate::assembler::passes::parse::{ASTNode, PlausibleOperator};
 
 pub struct ParseOperandsPass<A: Architecture> {
     phantom_architecture: PhantomData<A>,
