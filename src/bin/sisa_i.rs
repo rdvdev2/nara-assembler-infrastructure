@@ -104,7 +104,68 @@ impl Instruction<SisaI> for SisaIInstruction {
     }
 
     fn emit(&self, operands: impl IntoIterator<Item=SisaIOperand>) -> impl IntoIterator<Item=u8> {
-        None
+        let mut instruction: u16 = 0;
+        
+        instruction |= match self {
+            SisaIInstruction::LogicArithmetic(_) => 0,
+            SisaIInstruction::Comparison(_) => 1,
+            SisaIInstruction::Addi => 2,
+            SisaIInstruction::Ld => 3,
+            SisaIInstruction::St => 4,
+            SisaIInstruction::Movi | SisaIInstruction::Movhi => 5,
+            SisaIInstruction::Bz | SisaIInstruction::Bnz => 6,
+            SisaIInstruction::In | SisaIInstruction::Out => 7,
+        } << 12;
+        
+        match self {
+            SisaIInstruction::LogicArithmetic(3) => {
+                let Some((SisaIOperand::Reg(rd), SisaIOperand::Reg(ra))) = operands.into_iter().collect_tuple() else { unreachable!() };
+                instruction |= (3 & 0b111) << 3;
+                instruction |= (ra as u16 & 0b111) << 6;
+                instruction |= (rd as u16 & 0b111) << 9;
+            }
+            SisaIInstruction::LogicArithmetic(f) | SisaIInstruction::Comparison(f) => {
+                let Some((SisaIOperand::Reg(rd), SisaIOperand::Reg(ra), SisaIOperand::Reg(rb))) = operands.into_iter().collect_tuple() else { unreachable!() };
+                instruction |= (rb as u16 & 0b111) << 0;
+                instruction |= (*f as u16 & 0b111) << 3;
+                instruction |= (ra as u16 & 0b111) << 6;
+                instruction |= (rd as u16 & 0b111) << 9;
+            }
+            SisaIInstruction::Addi => {
+                let Some((SisaIOperand::Reg(rd), SisaIOperand::Reg(ra), SisaIOperand::Imm6(imm))) = operands.into_iter().collect_tuple() else { unreachable!() };
+                instruction |= (imm as u16 & 0b111111) << 0;
+                instruction |= (ra as u16 & 0b111) << 6;
+                instruction |= (rd as u16 & 0b111) << 9;
+            }
+            SisaIInstruction::Ld => {
+                let Some((SisaIOperand::Reg(rd), SisaIOperand::Imm6(off), SisaIOperand::Reg(ra))) = operands.into_iter().collect_tuple() else { unreachable!() };
+                instruction |= (off as u16 & 0b111111) << 0;
+                instruction |= (ra as u16 & 0b111) << 6;
+                instruction |= (rd as u16 & 0b111) << 9;
+            }
+            SisaIInstruction::St => {
+                let Some((SisaIOperand::Imm6(off), SisaIOperand::Reg(ra), SisaIOperand::Reg(rb))) = operands.into_iter().collect_tuple() else { unreachable!() };
+                instruction |= (off as u16 & 0b111111) << 0;
+                instruction |= (ra as u16 & 0b111) << 6;
+                instruction |= (rb as u16 & 0b111) << 9;
+            }
+            SisaIInstruction::Movi | SisaIInstruction::Movhi | SisaIInstruction::Bz | SisaIInstruction::Bnz | SisaIInstruction::In => {
+                let Some((SisaIOperand::Reg(r), SisaIOperand::Imm8(imm))) = operands.into_iter().collect_tuple() else { unreachable!() };
+                instruction |= (imm as u16 & 0b11111111) << 0;
+                instruction |= (r as u16 & 0b111) << 9;
+            }
+            SisaIInstruction::Out => {
+                let Some((SisaIOperand::Imm8(imm), SisaIOperand::Reg(r))) = operands.into_iter().collect_tuple() else { unreachable!() };
+                instruction |= (imm as u16 & 0b11111111) << 0;
+                instruction |= (r as u16 & 0b111) << 9;
+            }
+        }
+        
+        if matches!(self, SisaIInstruction::Movhi | SisaIInstruction::Bnz | SisaIInstruction::Out) {
+            instruction |= 1 << 8;
+        }
+        
+        instruction.to_le_bytes()
     }
 
     fn enumerate() -> impl IntoIterator<Item=&'static Self> {
